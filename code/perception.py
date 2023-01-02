@@ -114,7 +114,7 @@ def perception_step(Rover, debug):
     # 1) Define source and destination points for perspective transform
     # 2) Apply perspective transform
     
-    # 3) Apply color threshold to identify navigable terrain/obstacles/rock samples
+    # 3) Apply color threshold to identify navigable terrain/obstacles/rock_samples samples
     # 4) Update Rover.vision_image (this will be displayed on left side of screen)
         # Example: Rover.vision_image[:,:,0] = obstacle color-thresholded binary image
         #          Rover.vision_image[:,:,1] = rock_sample color-thresholded binary image
@@ -149,31 +149,31 @@ def perception_step(Rover, debug):
 
     if(debug):
         warped = perspect_transform(Rover.img, source, destination)
-        threshed = color_thresh(warped)
+        navigable = color_thresh(warped)
         obstacles = color_thresh_obstacles(warped)
-        rock = color_thresh_rock(warped)
+        rock_samples = color_thresh_rock(warped)
 
         cv2.imwrite("debuger/ "+ str(Rover.total_time) + "original.jpg",Rover.img)
-        cv2.imwrite("debuger/ "+str(Rover.total_time) + "threshed.jpg",threshed)
+        cv2.imwrite("debuger/ "+str(Rover.total_time) + "navigable.jpg",navigable)
         cv2.imwrite("debuger/ "+str(Rover.total_time) + "warped.jpg",warped)
         cv2.imwrite("debuger/ "+str(Rover.total_time) + "obstacles.jpg",obstacles)
-        cv2.imwrite("debuger/ "+str(Rover.total_time) + "rock.jpg",rock)
+        cv2.imwrite("debuger/ "+str(Rover.total_time) + "rock_samples.jpg",rock_samples)
 
     else:
         warped = perspect_transform(Rover.img, source, destination)
-        threshed = color_thresh(warped)
+        navigable = color_thresh(warped)
         obstacles = color_thresh_obstacles(warped)
-        rock = color_thresh_rock(warped)
+        rock_samples = color_thresh_rock(warped)
 
     Rover.vision_image[:,:,0] = obstacles*255
-    Rover.vision_image[:,:,1] = rock*255
-    Rover.vision_image[:,:,2] = threshed*255
+    Rover.vision_image[:,:,1] = rock_samples*255
+    Rover.vision_image[:,:,2] = navigable*255
 
-    x , y = rover_coords(threshed)
+    x , y = rover_coords(navigable)
     dist , angle = to_polar_coords(x,y)
 
     x_world , y_world = pix_to_world(x,y,Rover.pos[0],Rover.pos[1],Rover.yaw,Rover.worldmap.shape[0],6)
-    x_rock, y_rock = rover_coords(rock)
+    x_rock, y_rock = rover_coords(rock_samples)
     xw_rock, yw_rock = pix_to_world(x_rock,y_rock,Rover.pos[0],Rover.pos[1],Rover.yaw,Rover.worldmap.shape[0],6)
     x_obst , y_obst = rover_coords(obstacles)
     xw_obst , yw_obst = pix_to_world(x_obst,y_obst,Rover.pos[0],Rover.pos[1],Rover.yaw,Rover.worldmap.shape[0],6)
