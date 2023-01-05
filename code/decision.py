@@ -12,17 +12,9 @@ def decision_step(Rover):
 
     # Example:
     # Check if we have vision data to make decisions with
-    offset = 0
-    # Only apply left wall hugging when out of the starting point (after 10s)
-    # to avoid getting stuck in a circle
-    if Rover.total_time > 10:
-        # Steering proportional to the deviation results in
-        # small offsets on straight lines and
-        # large values in turns and open areas
-        offset = 0.8 * np.std(Rover.nav_angles)
-
     if Rover.picking_up:
         Rover.throttle = 0
+        Rover.mode = 'collecting'
 
     elif Rover.near_sample and not Rover.picking_up:
         if Rover.vel == 0:
@@ -33,14 +25,15 @@ def decision_step(Rover):
             Rover.brake = Rover.brake_set
 
     elif Rover.rock_angles is not None and len(Rover.rock_angles) > 1:
-        Rover.throttle = 0.05
+        Rover.throttle = 0.3
         # Set steering to average angle clipped to the range +/- 15
-        Rover.steer = np.clip(np.mean(Rover.rock_angles+offset* 180 / np.pi), -15, 15) ## changed
+        Rover.steer = np.clip(np.mean(Rover.rock_angles * 180 / np.pi), -15, 15) ## changed
+        Rover.AngleMemory = Rover.steer
 
     elif Rover.nav_angles is not None:
 
         # Check for Rover.mode status
-        if Rover.mode == 'FORWARD':
+        if Rover.mode == 'forward':
             print('FORWARD MODE')
             # Check the extent of navigable terrain
             if len(Rover.nav_angles) >= Rover.stop_forward:
@@ -48,17 +41,17 @@ def decision_step(Rover):
                 # and velocity is below max, then throttle
                 if Rover.vel < 0.01 and Rover.throttle != 0:
                     Rover.brake = 0
-                    Rover.mode = 'OBSTRUCTED'
+                    Rover.mode = 'stuck'
                 elif Rover.vel < Rover.max_vel:
                     # Set throttle value to throttle setting
                     Rover.throttle = Rover.throttle_set
-                    # Rover.steer = np.clip(np.mean(Rover.nav_angles * 180/np.pi), -10, 10)
+                    Rover.steer = np.clip(np.mean(Rover.nav_angles * 180/np.pi), -15, 15) 
 
                 else: # Else coast
                     Rover.throttle = 0
                 Rover.brake = 0
                 # Set steering to average angle clipped to the range +/- 15
-                Rover.steer = np.clip(np.mean(Rover.nav_angles+offset* 180/np.pi), -15, 15) ## changed
+                Rover.steer = np.clip(np.mean(Rover.nav_angles * 180/np.pi), -15, 15)  ## changed
             # If there's a lack of navigable terrain pixels then go to 'stop' mode
             elif len(Rover.nav_angles) < Rover.stop_forward:
                     # Set mode to "stop" and hit the brakes!
@@ -66,7 +59,7 @@ def decision_step(Rover):
                     # Set brake to stored brake value
                     Rover.brake = Rover.brake_set
                     Rover.steer = 0
-                    Rover.mode = 'STOP'
+                    Rover.mode = 'stop'
             elif Rover.steer > 5:
                 Rover.count += 1
 
@@ -74,10 +67,10 @@ def decision_step(Rover):
                 Rover.count = 0
 
             elif Rover.count > 100:
-                Rover.mode = 'looping'
+                Rover.mode = 'looping'       
 
         # If we're already in "stop" mode then make different decisions
-        elif Rover.mode == 'STOP':
+        elif Rover.mode == 'stop':
             print('STOP MODE')
             # If we're in stop mode but still moving keep braking
             if Rover.vel > 0.2:
@@ -92,24 +85,37 @@ def decision_step(Rover):
                     # Release the brake to allow turning
                     Rover.brake = 0
                     # Turn range is +/- 15 degrees, when stopped the next line will induce 4-wheel turning
-                    Rover.steer = -15 ## changed # Could be more clever here about which way to turn
+                    if Rover.AngleMemory != 0:
+                        Rover.steer = -150 * Rover.AngleMemory ## changed # Could be more clever here about which way to turn
+                    #Rover.steer = -4
+                    else:
+                        Rover.steer = -15
                 # If we're stopped but see sufficient navigable terrain in front then go!
                 if len(Rover.nav_angles) >= Rover.go_forward:
                     # Set throttle back to stored value
                     Rover.throttle = Rover.throttle_set
                     # Release the brake
                     Rover.brake = 0
+                    if Rover.AngleMemory != 0:
+                        Rover.steer = -150 * Rover.AngleMemory ## changed # Could be more clever here about which way to turn
+                    #Rover.steer = -4
+                    else:
+                        Rover.steer = -15
                     # Set steer to mean angle
-                    offset=12
-                    Rover.steer = np.clip(np.mean(Rover.nav_angles+offset * 180/np.pi), -15, 15)
-                    Rover.mode = 'FORWARD'
+                    #Rover.steer = np.clip(np.mean(Rover.nav_angles * 180/np.pi), -15, 15) 
+                    Rover.mode = 'forward'     
 
-        elif Rover.mode == 'OBSTRUCTED':
-            print('OBSTRUCTED')
+        elif Rover.mode == 'stuck':
+            print('STUCK MODE')
             Rover.brake = 0
             Rover.throttle = 0
-            Rover.steer = -15 ##15
-            Rover.mode = 'FORWARD'
+            #Rover.steer = -15 
+            Rover.mode = 'forward'
+
+        elif Rover.mode == 'collecting':
+            Rover.brake =0
+            Rover.throttle =0
+            Rover.mode = 'forward'
 
         elif Rover.mode == 'looping':
             print('LOOPING')
@@ -119,8 +125,8 @@ def decision_step(Rover):
             Rover.brake = 0
             Rover.count += 1
             if Rover.count > 50:
-                Rover.mode = 'FORWARD'
-                Rover.count = 0
+                Rover.mode = 'forward'
+                Rover.count = 0    
 
     # Just to make the rover do something
     # even if no modifications have been made to the code
